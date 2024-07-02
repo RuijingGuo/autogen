@@ -11,8 +11,8 @@ from types import TracebackType
 from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 
 import vagrant
-#from fabric.api import env, execute, task, run
-#from fabric.api import settings, run, put
+from fabric.api import env, execute, task, run
+from fabric.api import settings, run, put
 
 from ..code_utils import TIMEOUT_MSG, _cmd
 from .base import CodeBlock, CodeExecutor, CodeExtractor, CommandLineCodeResult
@@ -235,9 +235,11 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
             #if exit_code != 0:
             #    break
             print(command)
-            with settings(host_string=self._v.user_hostname_port(), key_filename=self._v.keyfile(), disable_known_hosts=True):
+            with settings(host_string=self._v.user_hostname_port(), key_filename=self._v.keyfile(), disable_known_hosts=True, warn_only=True):
                 put(code_path, '/home/vagrant')
                 output = run(' '.join(command))
+                outputs.append(output[-200:])
+
 
         code_file = str(files[0]) if files else None
         return CommandLineCodeResult(exit_code=last_exit_code, output="".join(outputs), code_file=code_file)
