@@ -56,11 +56,8 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
 
     def __init__(
         self,
-        image: str = "generic/ubuntu2204",
-        vagrant_name: Optional[str] = None,
         timeout: int = 60,
         work_dir: Union[Path, str] = Path("."),
-        bind_dir: Optional[Union[Path, str]] = None,
         auto_remove: bool = True,
         stop_vagrant: bool = True,
         execution_policies: Optional[Dict[str, bool]] = None,
@@ -103,36 +100,6 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
             work_dir = Path(work_dir)
         work_dir.mkdir(exist_ok=True)
 
-        if bind_dir is None:
-            bind_dir = work_dir
-        elif isinstance(bind_dir, str):
-            bind_dir = Path(bind_dir)
-
-        #client = docker.from_env()
-        # Check if the image exists
-        #try:
-         #   client.images.get(image)
-        #except ImageNotFound:
-       #     logging.info(f"Pulling image {image}...")
-            # Let the docker exception escape if this fails.
-       #     client.images.pull(image)
-
-       # if vagrant_name is None:
-       #     vagrant_name = f"autogen-code-exec-{uuid.uuid4()}"
-
-        # Start a vagrant from the image, read to exec commands later
-        #self._vagrant = client.vagrants.create(
-        #    image,
-        #    name=vagrant_name,
-        #    entrypoint="/bin/sh",
-        #    tty=True,
-        #    auto_remove=auto_remove,
-        #    volumes={str(bind_dir.resolve()): {"bind": "/workspace", "mode": "rw"}},
-        #    working_dir="/workspace",
-        #)
-        #self._vagrant.start()
-
-        #_wait_for_ready(self._vagrant)
         self._v = vagrant.Vagrant()
         self._v.up()
 
@@ -151,7 +118,6 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
 
         self._timeout = timeout
         self._work_dir: Path = work_dir
-        self._bind_dir: Path = bind_dir
         self.execution_policies = self.DEFAULT_EXECUTION_POLICY.copy()
         if execution_policies is not None:
             self.execution_policies.update(execution_policies)
@@ -165,11 +131,6 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
     def work_dir(self) -> Path:
         """(Experimental) The working directory for the code execution."""
         return self._work_dir
-
-    @property
-    def bind_dir(self) -> Path:
-        """(Experimental) The binding directory for the code execution vagrant."""
-        return self._bind_dir
 
     @property
     def code_extractor(self) -> CodeExtractor:
@@ -239,6 +200,7 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
                 put(code_path, '/home/vagrant')
                 output = run(' '.join(command))
                 outputs.append(output[-200:])
+                last_exit_code = output.return_code
 
 
         code_file = str(files[0]) if files else None
