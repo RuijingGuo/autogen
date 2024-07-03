@@ -6,13 +6,11 @@ import sys
 import uuid
 from hashlib import md5
 from pathlib import Path
-from time import sleep
 from types import TracebackType
 from typing import Any, ClassVar, Dict, List, Optional, Type, Union
 
 import vagrant
-from fabric.api import env, execute, task, run
-from fabric.api import settings, run, put
+from fabric.api import env, execute, task, run, settings, put
 
 from ..code_utils import TIMEOUT_MSG, _cmd
 from .base import CodeBlock, CodeExecutor, CodeExtractor, CommandLineCodeResult
@@ -24,20 +22,7 @@ if sys.version_info >= (3, 11):
 else:
     from typing_extensions import Self
 
-
-def _wait_for_ready(vagrant: Any, timeout: int = 60, stop_time: float = 0.1) -> None:
-    elapsed_time = 0.0
-    while vagrant.status != "running" and elapsed_time < timeout:
-        sleep(stop_time)
-        elapsed_time += stop_time
-        vagrant.reload()
-        continue
-    if vagrant.status != "running":
-        raise ValueError("Vagrant failed to start")
-
-
 __all__ = ("VagrantCommandLineCodeExecutor",)
-
 
 class VagrantCommandLineCodeExecutor(CodeExecutor):
     DEFAULT_EXECUTION_POLICY: ClassVar[Dict[str, bool]] = {
@@ -59,11 +44,10 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
         timeout: int = 60,
         work_dir: Union[Path, str] = Path("."),
         auto_remove: bool = True,
-        stop_vagrant: bool = True,
         execution_policies: Optional[Dict[str, bool]] = None,
     ):
         """(Experimental) A code executor class that executes code through
-        a command line environment in a Vagrant vagrant.
+        a command line environment in a vagrant.
 
         The executor first saves each code block in a file in the working
         directory, and then executes the code file in the vagrant.
@@ -74,21 +58,11 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
         block.
 
         Args:
-            image (_type_, optional): Vagrant image to use for code execution.
-                Defaults to "python:3-slim".
-            vagrant_name (Optional[str], optional): Name of the Vagrant vagrant
-                which is created. If None, will autogenerate a name. Defaults to None.
             timeout (int, optional): The timeout for code execution. Defaults to 60.
             work_dir (Union[Path, str], optional): The working directory for the code
                 execution. Defaults to Path(".").
-            bind_dir (Union[Path, str], optional): The directory that will be bound
-            to the code executor vagrant. Useful for cases where you want to spawn
-            the vagrant from within a vagrant. Defaults to work_dir.
-            auto_remove (bool, optional): If true, will automatically remove the Vagrant
+            auto_remove (bool, optional): If true, will automatically remove the
                 vagrant when it is stopped. Defaults to True.
-            stop_vagrant (bool, optional): If true, will automatically stop the
-                vagrant when stop is called, when the context manager exits or when
-                the Python process exits with atext. Defaults to True.
 
         Raises:
             ValueError: On argument error, or if the vagrant fails to start.
@@ -107,15 +81,7 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
             self._v.destroy()
             atexit.unregister(cleanup)
 
-        #if stop_vagrant:
-        #    atexit.register(cleanup)
-
         self._cleanup = cleanup
-
-        # Check if the vagrant is running
-        #if self._vagrant.status != "running":
-        #    raise ValueError(f"Failed to start vagrant from image {image}. Logs: {self._vagrant.logs()}")
-
         self._timeout = timeout
         self._work_dir: Path = work_dir
         self.execution_policies = self.DEFAULT_EXECUTION_POLICY.copy()
@@ -124,28 +90,27 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
 
     @property
     def timeout(self) -> int:
-        """(Experimental) The timeout for code execution."""
+        """Get the timeout for code execution."""
         return self._timeout
 
     @property
     def work_dir(self) -> Path:
-        """(Experimental) The working directory for the code execution."""
+        """Get the working directory for code execution."""
         return self._work_dir
 
     @property
     def code_extractor(self) -> CodeExtractor:
-        """(Experimental) Export a code extractor that can be used by an agent."""
+        """Get a code extractor instance for code blocks."""
         return MarkdownCodeExtractor()
 
     def execute_code_blocks(self, code_blocks: List[CodeBlock]) -> CommandLineCodeResult:
-        """(Experimental) Execute the code blocks and return the result.
+        """ Execute the code blocks and return the result.
 
         Args:
-            code_blocks (List[CodeBlock]): The code blocks to execute.
+            code_blocks (List[CodeBlock]): List of code blocks to execute.
 
         Returns:
             CommandlineCodeResult: The result of the code execution."""
-        print(code_blocks)
 
         if len(code_blocks) == 0:
             raise ValueError("No code blocks to execute.")
@@ -184,20 +149,12 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
                 continue
 
             command = ["timeout", str(self._timeout), _cmd(lang), filename]
-            #result = self._vagrant.exec_run(command)
-            #exit_code = result.exit_code
-            #output = result.output.decode("utf-8")
-            #if exit_code == 124:
-            #    output += "\n" + TIMEOUT_MSG
-            #outputs.append(output)
-            #output = run("ls -l backups")
-
-            #last_exit_code = exit_code
-            #if exit_code != 0:
-            #    break
-            print(command)
-            with settings(host_string=self._v.user_hostname_port(), key_filename=self._v.keyfile(), disable_known_hosts=True, warn_only=True):
-                put(code_path, '/home/vagrant')
+            with settings(host_string=self._v.user_hostname_port(),
+                key_filename=self._v.keyfile(),
+                disable_known_hosts=True,
+                warn_only=True
+            ):
+                put(code_path, '~')
                 output = run(' '.join(command))
                 outputs.append(output[-200:])
                 last_exit_code = output.return_code
@@ -207,13 +164,10 @@ class VagrantCommandLineCodeExecutor(CodeExecutor):
         return CommandLineCodeResult(exit_code=last_exit_code, output="".join(outputs), code_file=code_file)
 
     def restart(self) -> None:
-        """(Experimental) Restart the code executor."""
-        #self._vagrant.restart()
-        #if self._vagrant.status != "running":
-        #    raise ValueError(f"Failed to restart vagrant. Logs: {self._vagrant.logs()}")
+        """Restart the code executor."""
 
     def stop(self) -> None:
-        """(Experimental) Stop the code executor."""
+        """Stop the code executor."""
         self._cleanup()
 
     def __enter__(self) -> Self:
