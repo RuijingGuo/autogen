@@ -47,7 +47,7 @@ public class AnthropicClientAgent : IStreamingAgent
         return new MessageEnvelope<ChatCompletionResponse>(response, from: this.Name);
     }
 
-    public async IAsyncEnumerable<IStreamingMessage> GenerateStreamingReplyAsync(IEnumerable<IMessage> messages,
+    public async IAsyncEnumerable<IMessage> GenerateStreamingReplyAsync(IEnumerable<IMessage> messages,
         GenerateReplyOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (var message in _anthropicClient.StreamingChatCompletionsAsync(
@@ -67,7 +67,8 @@ public class AnthropicClientAgent : IStreamingAgent
             Stream = shouldStream,
             Temperature = (decimal?)options?.Temperature ?? _temperature,
             Tools = _tools?.ToList(),
-            ToolChoice = _toolChoice ?? ToolChoice.Auto
+            ToolChoice = _toolChoice ?? (_tools is { Length: > 0 } ? ToolChoice.Auto : null),
+            StopSequences = options?.StopSequence?.ToArray(),
         };
 
         chatCompletionRequest.Messages = BuildMessages(messages);
@@ -95,6 +96,22 @@ public class AnthropicClientAgent : IStreamingAgent
             }
         }
 
-        return chatMessages;
+        // merge messages with the same role
+        // fixing #2884
+        var mergedMessages = chatMessages.Aggregate(new List<ChatMessage>(), (acc, message) =>
+        {
+            if (acc.Count > 0 && acc.Last().Role == message.Role)
+            {
+                acc.Last().Content.AddRange(message.Content);
+            }
+            else
+            {
+                acc.Add(message);
+            }
+
+            return acc;
+        });
+
+        return mergedMessages;
     }
 }
